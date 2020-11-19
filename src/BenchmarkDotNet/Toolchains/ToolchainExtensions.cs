@@ -55,10 +55,10 @@ namespace BenchmarkDotNet.Toolchains
                 case CoreRuntime coreRuntime:
                     if (descriptor != null && descriptor.Type.Assembly.IsLinqPad())
                         return InProcessEmitToolchain.Instance;
-                    if (coreRuntime.RuntimeMoniker != RuntimeMoniker.NotRecognized)
+                    if (coreRuntime.RuntimeMoniker != RuntimeMoniker.NotRecognized && !coreRuntime.IsPlatformSpecific)
                         return GetToolchain(coreRuntime.RuntimeMoniker);
 
-                    return CsProjCoreToolchain.From(new DotNetCli.NetCoreAppSettings(coreRuntime.MsBuildMoniker, null, coreRuntime.Name));
+                    return CsProjCoreToolchain.From(new NetCoreAppSettings(coreRuntime.MsBuildMoniker, null, coreRuntime.Name));
 
                 case CoreRtRuntime coreRtRuntime:
                     return coreRtRuntime.RuntimeMoniker != RuntimeMoniker.NotRecognized
@@ -99,8 +99,13 @@ namespace BenchmarkDotNet.Toolchains
                     return CsProjCoreToolchain.NetCoreApp30;
                 case RuntimeMoniker.NetCoreApp31:
                     return CsProjCoreToolchain.NetCoreApp31;
+#pragma warning disable CS0618 // Type or member is obsolete
                 case RuntimeMoniker.NetCoreApp50:
+#pragma warning restore CS0618 // Type or member is obsolete
+                case RuntimeMoniker.Net50:
                     return CsProjCoreToolchain.NetCoreApp50;
+                case RuntimeMoniker.Net60:
+                    return CsProjCoreToolchain.NetCoreApp60;
                 case RuntimeMoniker.CoreRt20:
                     return CoreRtToolchain.Core20;
                 case RuntimeMoniker.CoreRt21:
@@ -113,6 +118,8 @@ namespace BenchmarkDotNet.Toolchains
                     return CoreRtToolchain.Core31;
                 case RuntimeMoniker.CoreRt50:
                     return CoreRtToolchain.Core50;
+                case RuntimeMoniker.CoreRt60:
+                    return CoreRtToolchain.Core60;
                 default:
                     throw new ArgumentOutOfRangeException(nameof(runtimeMoniker), runtimeMoniker, "RuntimeMoniker not supported");
             }

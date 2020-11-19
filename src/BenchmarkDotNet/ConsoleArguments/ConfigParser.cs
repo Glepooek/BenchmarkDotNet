@@ -106,12 +106,12 @@ namespace BenchmarkDotNet.ConsoleArguments
 
             foreach (string runtime in options.Runtimes)
             {
-                if (!Enum.TryParse<RuntimeMoniker>(runtime.Replace(".", string.Empty), ignoreCase: true, out var parsed))
+                if (!TryParse(runtime, out RuntimeMoniker runtimeMoniker))
                 {
                     logger.WriteLineError($"The provided runtime \"{runtime}\" is invalid. Available options are: {string.Join(", ", Enum.GetNames(typeof(RuntimeMoniker)).Select(name => name.ToLower()))}.");
                     return false;
                 }
-                else if (parsed == RuntimeMoniker.Wasm && (options.WasmMainJs == null || options.WasmMainJs.IsNotNullButDoesNotExist()))
+                else if (runtimeMoniker == RuntimeMoniker.Wasm && (options.WasmMainJs == null || options.WasmMainJs.IsNotNullButDoesNotExist()))
                 {
                     logger.WriteLineError($"The provided {nameof(options.WasmMainJs)} \"{options.WasmMainJs}\" does NOT exist. It MUST be provided.");
                     return false;
@@ -319,7 +319,7 @@ namespace BenchmarkDotNet.ConsoleArguments
         {
             TimeSpan? timeOut = options.TimeOutInSeconds.HasValue ? TimeSpan.FromSeconds(options.TimeOutInSeconds.Value) : default(TimeSpan?);
 
-            if (!Enum.TryParse(runtimeId.Replace(".", string.Empty), ignoreCase: true, out RuntimeMoniker runtimeMoniker))
+            if (!TryParse(runtimeId, out RuntimeMoniker runtimeMoniker))
             {
                 throw new InvalidOperationException("Impossible, already validated by the Validate method");
             }
@@ -340,7 +340,11 @@ namespace BenchmarkDotNet.ConsoleArguments
                 case RuntimeMoniker.NetCoreApp22:
                 case RuntimeMoniker.NetCoreApp30:
                 case RuntimeMoniker.NetCoreApp31:
+#pragma warning disable CS0618 // Type or member is obsolete
                 case RuntimeMoniker.NetCoreApp50:
+#pragma warning restore CS0618 // Type or member is obsolete
+                case RuntimeMoniker.Net50:
+                case RuntimeMoniker.Net60:
                     return baseJob
                         .WithRuntime(runtimeMoniker.GetRuntime())
                         .WithToolchain(CsProjCoreToolchain.From(new NetCoreAppSettings(runtimeId, null, runtimeId, options.CliPath?.FullName, options.RestorePath?.FullName, timeOut)));
@@ -352,6 +356,7 @@ namespace BenchmarkDotNet.ConsoleArguments
                 case RuntimeMoniker.CoreRt30:
                 case RuntimeMoniker.CoreRt31:
                 case RuntimeMoniker.CoreRt50:
+                case RuntimeMoniker.CoreRt60:
                     var builder = CoreRtToolchain.CreateBuilder();
 
                     if (options.CliPath != null)
@@ -374,25 +379,35 @@ namespace BenchmarkDotNet.ConsoleArguments
 
                     return baseJob.WithRuntime(runtime).WithToolchain(builder.ToToolchain());
                 case RuntimeMoniker.Wasm:
-                    var wasmRuntime = new WasmRuntime(
-                        mainJs: options.WasmMainJs,
-                        msBuildMoniker: "net5.0",
-                        javaScriptEngine: options.WasmJavascriptEngine?.FullName ?? "v8",
-                        javaScriptEngineArguments: options.WasmJavaScriptEngineArguments);
+                    return MakeWasmJob(baseJob, options, timeOut, RuntimeInformation.IsNetCore ? CoreRuntime.GetCurrentVersion().MsBuildMoniker : "net5.0");
+                case RuntimeMoniker.WasmNet50:
+                    return MakeWasmJob(baseJob, options, timeOut, "net5.0");
+                case RuntimeMoniker.WasmNet60:
+                    return MakeWasmJob(baseJob, options, timeOut, "net6.0");
 
-                    var toolChain = WasmToolChain.From(new NetCoreAppSettings(
-                        targetFrameworkMoniker: wasmRuntime.MsBuildMoniker,
-                        runtimeFrameworkVersion: null,
-                        name: wasmRuntime.Name,
-                        customDotNetCliPath: options.CliPath?.FullName,
-                        packagesPath: options.RestorePath?.FullName,
-                        timeout: timeOut ?? NetCoreAppSettings.DefaultBuildTimeout,
-                        customRuntimePack: options.CustomRuntimePack));
-
-                        return baseJob.WithRuntime(wasmRuntime).WithToolchain(toolChain);
                 default:
                     throw new NotSupportedException($"Runtime {runtimeId} is not supported");
             }
+        }
+
+        private static Job MakeWasmJob(Job baseJob, CommandLineOptions options, TimeSpan? timeOut, string msBuildMoniker)
+        {
+            var wasmRuntime = new WasmRuntime(
+                mainJs: options.WasmMainJs,
+                msBuildMoniker: msBuildMoniker,
+                javaScriptEngine: options.WasmJavascriptEngine?.FullName ?? "v8",
+                javaScriptEngineArguments: options.WasmJavaScriptEngineArguments);
+
+            var toolChain = WasmToolChain.From(new NetCoreAppSettings(
+                targetFrameworkMoniker: wasmRuntime.MsBuildMoniker,
+                runtimeFrameworkVersion: null,
+                name: wasmRuntime.Name,
+                customDotNetCliPath: options.CliPath?.FullName,
+                packagesPath: options.RestorePath?.FullName,
+                timeout: timeOut ?? NetCoreAppSettings.DefaultBuildTimeout,
+                customRuntimePack: options.CustomRuntimePack));
+
+            return baseJob.WithRuntime(wasmRuntime).WithToolchain(toolChain);
         }
 
         private static IEnumerable<IFilter> GetFilters(CommandLineOptions options)
@@ -475,6 +490,15 @@ namespace BenchmarkDotNet.ConsoleArguments
             var lastCommonDirectorySeparatorIndex = coreRunPath.FullName.LastIndexOf(Path.DirectorySeparatorChar, commonLongestPrefixIndex - 1);
 
             return coreRunPath.FullName.Substring(lastCommonDirectorySeparatorIndex);
+        }
+
+        private static bool TryParse(string runtime, out RuntimeMoniker runtimeMoniker)
+        {
+            int index = runtime.IndexOf('-');
+
+            return index < 0
+                ? Enum.TryParse<RuntimeMoniker>(runtime.Replace(".", string.Empty), ignoreCase: true, out runtimeMoniker)
+                : Enum.TryParse<RuntimeMoniker>(runtime.Substring(0, index).Replace(".", string.Empty), ignoreCase: true, out runtimeMoniker);
         }
     }
 }

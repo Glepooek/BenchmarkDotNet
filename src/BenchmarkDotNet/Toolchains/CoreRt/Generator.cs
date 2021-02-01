@@ -133,9 +133,10 @@ $@"<?xml version=""1.0"" encoding=""utf-8""?>
     <DebugSymbols>true</DebugSymbols>
     <UseSharedCompilation>false</UseSharedCompilation>
     <Deterministic>true</Deterministic>
-    <RootAllApplicationAssemblies>{rootAllApplicationAssemblies}</RootAllApplicationAssemblies>
+    {GetTrimmingSettings()}
     <IlcGenerateCompleteTypeMetadata>{ilcGenerateCompleteTypeMetadata}</IlcGenerateCompleteTypeMetadata>
     <IlcGenerateStackTraceData>{ilcGenerateStackTraceData}</IlcGenerateStackTraceData>
+    <EnsureNETCoreAppRuntime>false</EnsureNETCoreAppRuntime> <!-- workaround for 'This runtime may not be supported by.NET Core.' error -->
   </PropertyGroup>
   {GetRuntimeSettings(buildPartition.RepresentativeBenchmarkCase.Job.Environment.Gc, buildPartition.Resolver)}
   <ItemGroup>
@@ -166,7 +167,7 @@ $@"<?xml version=""1.0"" encoding=""utf-8""?>
     <DebugSymbols>true</DebugSymbols>
     <UseSharedCompilation>false</UseSharedCompilation>
     <Deterministic>true</Deterministic>
-    <RootAllApplicationAssemblies>{rootAllApplicationAssemblies}</RootAllApplicationAssemblies>
+    {GetTrimmingSettings()}
     <IlcGenerateCompleteTypeMetadata>{ilcGenerateCompleteTypeMetadata}</IlcGenerateCompleteTypeMetadata>
     <IlcGenerateStackTraceData>{ilcGenerateStackTraceData}</IlcGenerateStackTraceData>
   </PropertyGroup>
@@ -183,6 +184,11 @@ $@"<?xml version=""1.0"" encoding=""utf-8""?>
     <RdXmlFile Include=""rd.xml"" />
   </ItemGroup>
 </Project>";
+
+        private string GetTrimmingSettings()
+            => rootAllApplicationAssemblies
+                ? "<PublishTrimmed>false</PublishTrimmed>"
+                : "<TrimMode>link</TrimMode>";
 
         /// <summary>
         /// mandatory to make it possible to call GC.GetAllocatedBytesForCurrentThread() using reflection (not part of .NET Standard)
